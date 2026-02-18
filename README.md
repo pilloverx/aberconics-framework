@@ -1,6 +1,18 @@
 # Julia Code: Examples & GFE Module
 
-This directory contains reproducible experiments and the **GFE (Geometric Fourier Extension)** module—the spectral engine for the Aberconics framework.
+This repository contains the Julia reference implementation of the **Aberconics framework** and its **GFE (Geometric Fourier Extension) engine** for stabilized non-Markovian memory kernels.
+
+## About This Repository
+
+- Focus: explicit memory kernels (SOE), interpretable spectral metrics, and adaptive dynamical modeling.
+- Core implementation: `code/julia/src/GFE.jl` with runnable experiments in `code/julia/examples/`.
+- Outputs: interactive results under `results/` (OU noise, Lorenz, Gray-Scott).
+
+## Visuals
+
+![Lorenz Chaos Suppression](docs/figures/lorenz_before_after.png)
+
+![OU Colored Noise Memory Extension](docs/figures/ou_trajectories.png)
 
 ## 📦 Directory Structure
 
@@ -303,9 +315,9 @@ w = nnls_pg(A, b, lr=1e-3, iters=4000)
 
 ## 🔗 References
 
-- **Main paper**: `../../papers/Aberconics_Framework_V2.0.pdf`
-- **GFE theory**: `../../papers/GFE_Theoretical_Foundations.pdf`
-- **Memory metrics**: `../../papers/Spectral_Memory_Units_Analysis.pdf`
+- [Aberconics V2.0](https://github.com/pilloverx/aberconics-framework/raw/main/papers/Aberconics_V2.0.pdf)
+- [GFE Theoretical Foundations](https://github.com/pilloverx/aberconics-framework/raw/main/papers/GFE_Theoretical_Foundations.pdf)
+- [Stabilizing Memory Kernels Supplement](https://github.com/pilloverx/aberconics-framework/raw/main/papers/Stabilizing_Memory_Kernels_Supplement_Feb2026.pdf)
 
 ## ✅ Testing
 
@@ -318,6 +330,15 @@ using .GFE
 su = GFE.spectral_units(w, γ)
 println("✓ GFE module working correctly")
 ```
+
+## How to Cite
+
+If you use this work, please cite:  
+Ahorlu, D. K. (2026). *Aberconics: Stabilized Memory Kernels for Non-Markovian Dynamics*. Draft.
+
+## License
+
+This project is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ---
 
