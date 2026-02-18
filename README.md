@@ -12,7 +12,7 @@ This repository contains the Julia reference implementation of the **Aberconics 
 
 ![Lorenz Chaos Suppression](docs/figures/lorenz_before_after.png)
 
-![OU Colored Noise Memory Extension](docs/figures/ou_trajectories.png)
+![OU Colored Noise Memory Extension](/docs/figures/ou_trajectories_comparison.png)
 
 ## 📦 Directory Structure
 
