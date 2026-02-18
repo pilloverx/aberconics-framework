@@ -1,0 +1,28 @@
+# Julia artifacts
+*.ji
+*.so
+*.dylib
+*.dll
+
+# Local env/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Logs and scratch
+*.log
+*.tmp
+
+# Backups / exploratory files
+*backup*.jl
+Rebound*
+notebook.jl
+
+# External references
+*.pdf
+
+# Keep canonical repo layout only
+# (Do not commit ad-hoc plot/image dumps)
+results/**/*.png
+results/**/*.jpg
+results/**/*.jpeg

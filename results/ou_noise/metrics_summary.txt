@@ -1,0 +1,5 @@
+OU_Noisev1 summary (from latest validated run in local workspace):
+- SOE memory kernel fit validated against colored OU target.
+- Reported L1 fit error: < 0.005.
+- Reported effective dimension: D_eff ≈ 6.86.
+- See HTML: acf_comparison.html, psd_spectra.html.
