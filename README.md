@@ -1,12 +1,58 @@
-# Julia Code: Examples & GFE Module
+# Aberconics Framework (C++ Core + Python/Julia Wrappers)
 
-This repository contains the Julia reference implementation of the **Aberconics framework** and its **GFE (Geometric Fourier Extension) engine** for stabilized non-Markovian memory kernels.
+This repository contains:
+- a reusable C++ `gfe_core` library (`code/c++ core`)
+- Julia reference models and experiments (`code/julia`)
+- minimal Python (`ctypes`) and Julia (`ccall`) wrappers over the C ABI
 
 ## About This Repository
 
 - Focus: explicit memory kernels (SOE), interpretable spectral metrics, and adaptive dynamical modeling.
-- Core implementation: `code/julia/src/GFE.jl` with runnable experiments in `code/julia/examples/`.
+- C++ core: `code/c++ core` (library + CLI + tests).
+- Julia reference module: `code/julia/src/GFE.jl` with runnable experiments in `code/julia/examples/`.
 - Outputs: interactive results under `results/` (OU noise, Lorenz, Gray-Scott).
+
+## Multi-Language Quick Start
+
+### 1) Build the C++ core
+
+```bash
+cmake -S "code/c++ core" -B "code/c++ core/build" -DCMAKE_BUILD_TYPE=Release
+cmake --build "code/c++ core/build" -j
+```
+
+### 2) Use from C++
+
+- C++ package docs: `code/c++ core/README.md`
+- CMake consumer pattern:
+
+```cmake
+find_package(gfe_core REQUIRED)
+target_link_libraries(my_target PRIVATE gfe::gfe_core)
+```
+
+### 3) Use from Python (`ctypes`)
+
+Build shared library and run smoke call:
+
+```bash
+cmake -S "code/c++ core" -B "code/c++ core/build-shared" -DBUILD_SHARED_LIBS=ON
+cmake --build "code/c++ core/build-shared" -j
+export GFE_CORE_LIB="$(pwd)/code/c++ core/build-shared/libgfe_core.so"
+python3 code/python/ctypes_smoke.py
+```
+
+### 4) Use from Julia (`ccall`)
+
+```bash
+export GFE_CORE_LIB="$(pwd)/code/c++ core/build-shared/libgfe_core.so"
+julia code/julia/examples/05_capi_ccall_smoke.jl
+```
+
+### 5) Wrapper tests
+
+- Python: `pytest -q code/python/tests`
+- Julia wrapper test is included from `code/julia/src/test/runtests.jl` and runs when `GFE_CORE_LIB` points to a valid shared library.
 
 ## Visuals
 
@@ -315,9 +361,9 @@ w = nnls_pg(A, b, lr=1e-3, iters=4000)
 
 ## 🔗 References
 
-- [Aberconics V2.0](https://github.com/pilloverx/aberconics-framework/raw/main/papers/Aberconics_V2.0.pdf)
-- [GFE Theoretical Foundations](https://github.com/pilloverx/aberconics-framework/raw/main/papers/GFE_Theoretical_Foundations.pdf)
-- [Stabilizing Memory Kernels Supplement](https://github.com/pilloverx/aberconics-framework/raw/main/papers/Stabilizing_Memory_Kernels_Supplement_Feb2026.pdf)
+- [Aberconics V2.0](docs/Papers/Aberconics_V2_0.pdf)
+- [GFE Theoretical Foundations](docs/Papers/geometric_fourier_extension_GFE_v1_0.pdf)
+- [Stabilizing Memory Kernels Supplement](docs/Papers/Aberconics_V2_0-1.pdf)
 
 ## ✅ Testing
 

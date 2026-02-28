@@ -20,9 +20,22 @@ notebook.jl
 
 # External references
 *.pdf
+SESSION_HANDOFF.md
 
 # Keep canonical repo layout only
 # (Do not commit ad-hoc plot/image dumps)
 results/**/*.png
 results/**/*.jpg
 results/**/*.jpeg
+
+# CMake / C++ build artifacts
+code/c++ core/build/
+code/c++ core/build-*/
+**/CMakeCache.txt
+**/CMakeFiles/
+**/cmake_install.cmake
+**/install_manifest.txt
+**/compile_commands.json
+
+
+

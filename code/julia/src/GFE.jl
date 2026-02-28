@@ -229,10 +229,10 @@ Returns:
 - SpectralUnits struct with all metrics
 
 Theory:
-- Mcap = Σᵢ wᵢ/γᵢ (mean timescale)
+- Mcap = (Σᵢ wᵢ/γᵢ²) / (Σᵢ wᵢ/γᵢ) (mean temporal depth)
 - Mscale = log₁₀(γ_max / γ_min)
 - Hmem = -Σᵢ (wᵢ/W) log(wᵢ/W) where W = Σ wᵢ
-- Deff = exp(Hmem) (effective rank)
+- Deff = L * exp(Hmem) (paper effective memory dimension)
 
 Example:
     su = spectral_units(w_fit, γ_fit)
@@ -242,9 +242,9 @@ Example:
 function spectral_units(w::Vector, γ::Vector)
     length(w) == length(γ) || throw(DimensionMismatch("w and γ must have same length"))
     
-    # Mean time scale: Σᵢ wᵢ/γᵢ
+    # Mean temporal depth (paper): (Σ wᵢ/γᵢ²) / (Σ wᵢ/γᵢ)
     W = sum(w)
-    Mcap = sum(w ./ γ) / W
+    Mcap = sum(w ./ (γ .^ 2)) / sum(w ./ γ)
     
     # Spectral span
     γ_min, γ_max = minimum(γ), maximum(γ)
@@ -260,8 +260,8 @@ function spectral_units(w::Vector, γ::Vector)
     # Normalized entropy: Hmem / log(n_modes)
     Hnorm = Hmem / log(max(length(w), 2))
     
-    # Effective dimension: e^Hmem (rank of distribution)
-    Deff = exp(Hmem)
+    # Paper effective dimension: L * e^Hmem
+    Deff = length(w) * exp(Hmem)
     
     return SpectralUnits(Mcap, Mscale, Mres, Hmem, Hnorm, Deff)
 end
@@ -269,10 +269,10 @@ end
 """
     memory_capacity(w::Vector, γ::Vector) -> Float64
 
-Shorthand: compute mean memory capacity = Σᵢ wᵢ/γᵢ.
+Shorthand (paper): compute mean temporal depth = (Σ wᵢ/γᵢ²)/(Σ wᵢ/γᵢ).
 """
 function memory_capacity(w::Vector, γ::Vector)
-    return sum(w ./ γ) / sum(w)
+    return sum(w ./ (γ .^ 2)) / sum(w ./ γ)
 end
 
 """
@@ -289,12 +289,12 @@ end
 """
     effective_dimension(w::Vector) -> Float64
 
-Shorthand: compute effective rank = exp(Hmem).
+Shorthand (paper): compute effective memory dimension = L * exp(Hmem).
 """
 function effective_dimension(w::Vector)
     p = w / sum(w)
     H = -sum(p .* log.(p .+ eps()))
-    return exp(H)
+    return length(w) * exp(H)
 end
 
 

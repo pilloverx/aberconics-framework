@@ -7,7 +7,7 @@ Run with: julia test/runtests.jl
 using Test
 using LinearAlgebra
 using Random
-include("../src/GFE.jl")
+include("../GFE.jl")
 using .GFE
 
 @testset "GFE Module Tests" begin
@@ -111,8 +111,8 @@ using .GFE
         @test 0 <= su.Hnorm <= 1
         @test su.Deff > 0
         
-        # Memory capacity should be Σ wᵢ/γᵢ
-        Mcap_manual = sum(w ./ γ) / sum(w)
+        # Paper memory capacity: (Σ wᵢ/γᵢ²)/(Σ wᵢ/γᵢ)
+        Mcap_manual = sum(w ./ (γ .^ 2)) / sum(w ./ γ)
         @test su.Mcap ≈ Mcap_manual
         
         # For nearly uniform w, entropy should be high
@@ -125,9 +125,10 @@ using .GFE
         
         su = spectral_units(w, γ)
         
-        # Single channel: limited entropy
-        @test su.Deff < 1.1  # Effective dimension ≈ 1
-        @test su.Mcap ≈ 2.0   # E[1/0.5] = 2
+        # Single channel (paper): Deff = L * exp(H) = 1
+        @test su.Deff < 1.1
+        # Mcap_paper = (1/γ²)/(1/γ) = 1/γ
+        @test su.Mcap ≈ 2.0
     end
     
     @testset "Shorthand Functions" begin
@@ -258,7 +259,7 @@ using .GFE
         su = spectral_units(w_fit, γ_fit)
         
         @test su.Mcap > 0
-        @test su.Deff >= 1.95  # Should have multiple active modes; allow small numerical variation
+        @test su.Deff >= 3.0  # Paper Deff = L*exp(H), should exceed 3 for multi-mode fits
         
         # 4. Pack for optimization
         θ = pack_memory_params(γ_fit, w_fit)
@@ -275,3 +276,6 @@ using .GFE
 end  # testset
 
 println("\n✓ All GFE tests passed!")
+
+# Optional C-ABI wrapper test (runs when GFE_CORE_LIB is configured).
+include("GFE_CAPI_validation.jl")

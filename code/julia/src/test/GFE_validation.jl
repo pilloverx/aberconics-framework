@@ -7,7 +7,7 @@ Run with: julia GFE_validation.jl
 
 using Random, Statistics, LinearAlgebra
 
-include("GFE.jl")
+include("../GFE.jl")
 using .GFE
 
 println("\n" * "="^80)
