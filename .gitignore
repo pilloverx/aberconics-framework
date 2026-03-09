@@ -3,11 +3,16 @@
 *.so
 *.dylib
 *.dll
+Manifest.toml
+Project.toml
 
 # Local env/editor
 .DS_Store
 .vscode/
 .idea/
+.venv/
+venv/
+env/
 
 # Logs and scratch
 *.log
