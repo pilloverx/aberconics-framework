@@ -24,7 +24,7 @@ Rebound*
 notebook.jl
 
 # External references
-*.pdf
+# *.pdf
 SESSION_HANDOFF.md
 
 # Keep canonical repo layout only
