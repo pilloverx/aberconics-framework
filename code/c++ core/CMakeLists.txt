@@ -29,6 +29,10 @@ add_library(gfe_core
     src/abersoe_runtime.cpp
     src/abersoe_scenarios.cpp
     src/abersoe_regression.cpp
+    src/hierarchical_min.cpp
+    src/hierarchical_min_coupling.cpp
+    src/hierarchical_min_diagnostics.cpp
+    src/hierarchical_min_renorm.cpp
 )
 add_library(gfe::gfe_core ALIAS gfe_core)
 
@@ -69,6 +73,34 @@ if(GFE_BUILD_TESTS)
     add_executable(abersoe_smoke_test tests/abersoe_smoke_test.cpp)
     target_link_libraries(abersoe_smoke_test PRIVATE gfe_core)
     add_test(NAME abersoe_smoke_test COMMAND abersoe_smoke_test)
+
+    add_executable(hierarchical_min_smoke_test tests/hierarchical_min_smoke_test.cpp)
+    target_link_libraries(hierarchical_min_smoke_test PRIVATE gfe_core)
+    add_test(NAME hierarchical_min_smoke_test COMMAND hierarchical_min_smoke_test)
+
+    add_executable(hierarchical_min_integration_test tests/hierarchical_min_integration_test.cpp)
+    target_link_libraries(hierarchical_min_integration_test PRIVATE gfe_core)
+    add_test(NAME hierarchical_min_integration_test COMMAND hierarchical_min_integration_test)
+
+    add_executable(hierarchical_min_unit_test tests/hierarchical_min_unit_test.cpp)
+    target_link_libraries(hierarchical_min_unit_test PRIVATE gfe_core)
+    add_test(NAME hierarchical_min_unit_test COMMAND hierarchical_min_unit_test)
+
+    add_executable(hierarchical_min_renorm_test tests/hierarchical_min_renorm_test.cpp)
+    target_link_libraries(hierarchical_min_renorm_test PRIVATE gfe_core)
+    add_test(NAME hierarchical_min_renorm_test COMMAND hierarchical_min_renorm_test)
+
+    add_executable(hierarchical_min_renorm_integration_test tests/hierarchical_min_renorm_integration_test.cpp)
+    target_link_libraries(hierarchical_min_renorm_integration_test PRIVATE gfe_core)
+    add_test(NAME hierarchical_min_renorm_integration_test COMMAND hierarchical_min_renorm_integration_test)
+
+    add_executable(hierarchical_min_consistency_test tests/hierarchical_min_consistency_test.cpp)
+    target_link_libraries(hierarchical_min_consistency_test PRIVATE gfe_core)
+    add_test(NAME hierarchical_min_consistency_test COMMAND hierarchical_min_consistency_test)
+
+    add_executable(hierarchical_min_benchmark_test tests/hierarchical_min_benchmark_test.cpp)
+    target_link_libraries(hierarchical_min_benchmark_test PRIVATE gfe_core)
+    add_test(NAME hierarchical_min_benchmark_test COMMAND hierarchical_min_benchmark_test)
 endif()
 
 if(GFE_BUILD_APPS)
@@ -83,6 +115,10 @@ if(GFE_BUILD_APPS)
     add_executable(abersoe_cli apps/abersoe_cli.cpp)
     target_link_libraries(abersoe_cli PRIVATE gfe_core)
     install(TARGETS abersoe_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+    add_executable(hierarchical_min_cli apps/hierarchical_min_cli.cpp)
+    target_link_libraries(hierarchical_min_cli PRIVATE gfe_core)
+    install(TARGETS hierarchical_min_cli RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
 endif()
 
 install(
