@@ -28,7 +28,9 @@ from gfe_ctypes import (
     run_hierarchical_chain_spec,
     run_hierarchical_scenario,
     validate_hierarchical_chain_spec,
+    write_hierarchical_chain_export_bundle,
     write_hierarchical_cross_level_report_csv,
+    write_hierarchical_export_bundle,
     write_hierarchical_renorm_report_csv,
     write_hierarchical_summary_csv,
 )
@@ -245,3 +247,30 @@ def test_ctypes_hierarchical_chain_spec_run():
         assert Path(summary_path).read_text(encoding="utf-8").splitlines()[0] == hierarchy_summary_csv_header(lib)
         assert Path(cross_path).read_text(encoding="utf-8").splitlines()[0] == hierarchy_cross_level_csv_header(lib)
         assert Path(renorm_path).read_text(encoding="utf-8").splitlines()[0] == hierarchy_renorm_csv_header(lib)
+
+        bundle_paths = write_hierarchical_export_bundle(
+            lib,
+            tmpdir,
+            "custom_case",
+            out,
+            cross,
+            renorm,
+            level_names=[level["name"] for level in levels],
+        )
+        assert Path(bundle_paths["summary_csv"]).exists()
+        assert Path(bundle_paths["cross_level_csv"]).exists()
+        assert Path(bundle_paths["renorm_csv"]).exists()
+
+        chain_bundle_paths = write_hierarchical_chain_export_bundle(
+            lib,
+            tmpdir,
+            "custom_case_direct",
+            levels,
+            edges,
+            steps=18,
+            sample_stride=6,
+            strict_finite=True,
+        )
+        assert Path(chain_bundle_paths["summary_csv"]).exists()
+        assert Path(chain_bundle_paths["cross_level_csv"]).exists()
+        assert Path(chain_bundle_paths["renorm_csv"]).exists()

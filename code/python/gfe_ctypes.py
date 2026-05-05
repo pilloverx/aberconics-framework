@@ -913,6 +913,68 @@ def write_hierarchical_renorm_report_csv(
     _write_csv(path, header, rows)
 
 
+def write_hierarchical_export_bundle(
+    lib: ctypes.CDLL,
+    output_dir: str,
+    bundle_name: str,
+    run_result: Dict[str, object],
+    cross_report: Dict[str, object],
+    renorm_report: Sequence[Dict[str, object]],
+    *,
+    level_names: Sequence[str] | None = None,
+) -> Dict[str, str]:
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = {
+        "summary_csv": str(out_dir / f"{bundle_name}_summary.csv"),
+        "cross_level_csv": str(out_dir / f"{bundle_name}_cross_level.csv"),
+        "renorm_csv": str(out_dir / f"{bundle_name}_renorm.csv"),
+    }
+    write_hierarchical_summary_csv(lib, paths["summary_csv"], run_result, level_names=level_names)
+    write_hierarchical_cross_level_report_csv(lib, paths["cross_level_csv"], cross_report)
+    write_hierarchical_renorm_report_csv(lib, paths["renorm_csv"], renorm_report)
+    return paths
+
+
+def write_hierarchical_chain_export_bundle(
+    lib: ctypes.CDLL,
+    output_dir: str,
+    bundle_name: str,
+    levels: List[Dict[str, object]],
+    edges: List[Dict[str, object]],
+    *,
+    steps: int = 80,
+    sample_stride: int = 10,
+    strict_finite: bool = True,
+) -> Dict[str, str]:
+    run_result = run_hierarchical_chain_spec(
+        lib,
+        levels,
+        edges,
+        steps=steps,
+        sample_stride=sample_stride,
+        strict_finite=strict_finite,
+    )
+    cross_report = get_hierarchical_cross_level_report_for_chain_spec(
+        lib,
+        levels,
+        edges,
+        steps=steps,
+        sample_stride=sample_stride,
+        strict_finite=strict_finite,
+    )
+    renorm_report = get_hierarchical_renorm_report_for_chain_spec(lib, levels, edges)
+    return write_hierarchical_export_bundle(
+        lib,
+        output_dir,
+        bundle_name,
+        run_result,
+        cross_report,
+        renorm_report,
+        level_names=[str(level.get("name", f"level_{idx}")) for idx, level in enumerate(levels)],
+    )
+
+
 def _double_array(values: List[float]) -> ctypes.Array[c_double] | None:
     if not values:
         return None

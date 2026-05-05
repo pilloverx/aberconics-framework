@@ -20,6 +20,8 @@ This folder provides a Python `ctypes` wrapper over the C ABI in:
   - `write_hierarchical_summary_csv(...)`
   - `write_hierarchical_cross_level_report_csv(...)`
   - `write_hierarchical_renorm_report_csv(...)`
+  - `write_hierarchical_export_bundle(...)`
+  - `write_hierarchical_chain_export_bundle(...)`
   - `hierarchy_*_csv_header(...)`
 - `ctypes_smoke.py`: proof-of-call script
 - `tests/test_gfe_ctypes.py`: tiny pytest smoke test
@@ -72,6 +74,8 @@ from gfe_ctypes import (
     run_hierarchical_scenario,
     validate_hierarchical_chain_spec,
     write_hierarchical_cross_level_report_csv,
+    write_hierarchical_chain_export_bundle,
+    write_hierarchical_export_bundle,
     write_hierarchical_renorm_report_csv,
     write_hierarchical_summary_csv,
 )
@@ -178,6 +182,28 @@ print(len(custom_renorm), custom_renorm[0]["retained_weight_fraction"])
 write_hierarchical_summary_csv(lib, "/tmp/custom_summary.csv", custom, level_names=[level["name"] for level in levels])
 write_hierarchical_cross_level_report_csv(lib, "/tmp/custom_cross.csv", custom_cross)
 write_hierarchical_renorm_report_csv(lib, "/tmp/custom_renorm.csv", custom_renorm)
+
+bundle = write_hierarchical_export_bundle(
+    lib,
+    "/tmp",
+    "custom_case",
+    custom,
+    custom_cross,
+    custom_renorm,
+    level_names=[level["name"] for level in levels],
+)
+print(bundle)
+
+direct_bundle = write_hierarchical_chain_export_bundle(
+    lib,
+    "/tmp",
+    "custom_case_direct",
+    levels,
+    edges,
+    steps=18,
+    sample_stride=6,
+)
+print(direct_bundle)
 ```
 
 ## Constrained Custom Chains
@@ -192,6 +218,8 @@ Helpers:
 - `write_hierarchical_summary_csv(lib, path, run_result, *, level_names=None)`
 - `write_hierarchical_cross_level_report_csv(lib, path, report)`
 - `write_hierarchical_renorm_report_csv(lib, path, analyses)`
+- `write_hierarchical_export_bundle(lib, output_dir, bundle_name, run_result, cross_report, renorm_report, *, level_names=None)`
+- `write_hierarchical_chain_export_bundle(lib, output_dir, bundle_name, levels, edges, *, steps=..., sample_stride=..., strict_finite=...)`
 
 Expected level fields:
 - `name`
@@ -219,6 +247,7 @@ This surface is intentionally constrained:
 - no arbitrary callback injection
 - custom chains now support the same typed cross-level and renorm report access pattern as canonical hierarchy scenarios
 - lightweight Python-side CSV export helpers sit above the typed report/run data when an application wants canonical column order without rebuilding it
+- named export bundles add a small convenience layer for writing the standard summary/cross-level/renorm trio with predictable filenames
 
 ## Hierarchy Report Enums
 
