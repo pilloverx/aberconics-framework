@@ -1,123 +1,156 @@
 # gfe_core C++ Library
 
-This directory builds the C++ `gfe_core` library for reuse in other C++ projects.
+This directory is the main implementation surface for the repository.
 
-## Core Standard Status
+It currently contains:
+- the reusable `gfe_core` C++ library
+- the `abersoe` single-level runtime layer
+- the `hierarchical_min` hierarchy, diagnostics, and renormalization layer
+- the C ABI in `include/gfe/gfe_c_api.h`
+- CLI tools and local test targets
 
-Current baseline: `GFE Core Standard v0.1` (frozen on 2026-02-25).
+## What This Layer Owns
 
-- This baseline is stable for continued feature work.
-- Default spectral metrics follow paper-oriented settings:
-  - `McapPolicy::PaperMeanDepth`
-  - `DeffPolicy::PaperEffectiveDimension`
-- Legacy semantics remain available through explicit API policies.
-- OU experiment/report numerical parity is tracked separately and is not a blocker for core feature development.
+### `gfe_*`
+- SOE fitting
+- spectral units and kernel utilities
+- augmented stepping primitives
+- backend selection
+- assumption and energy bookkeeping foundations
 
-## Fitter Backends
+### `abersoe`
+- single-level model assembly
+- scenario execution
+- runtime diagnostics
+- optional Hebbian memory-weight adaptation
 
-SOE fitting is now backend-driven:
-- default: NNLS projected gradient
-- optional: Prony side-line backend
+### `hierarchical_min`
+- multi-level composition
+- bottom-up and top-down coupling
+- cross-level diagnostics
+- renormalization analysis
+- constrained custom chain construction
 
-The API is structured for later fusion of additional fitters:
-- `logspace_gamma_basis(...)`
-- `fit_soe_on_basis(...)`
-- `fit_soe_kernel(..., SoeFitOptions)`
+## Current Status
 
-## Compute Backend Scaffold (Step 2)
+This C++ layer is no longer just a fitter plus a few demos.
 
-Runtime compute backend selection is now plumbed into SOE fit entry points:
-- `fit_soe_kernel(..., SoeFitOptions, BackendConfig)`
-- `fit_soe_kernel(..., n_basis, ..., BackendConfig)`
+The current codebase already includes:
+- installable `gfe_core` library packaging
+- shared-library builds for wrapper use
+- canonical `abersoe` and hierarchy scenarios
+- typed C ABI access to runtime and report surfaces
+- renormalization consistency reporting
+- passing local tests for core, ABI, runtime, hierarchy, and renorm paths
 
-Current behavior remains CPU-reference by default:
-- available now: `cpu_ref`
-- scaffolded placeholders: `cpu_blas`, `gpu_cuda`, `gpu_hip`, `gpu_sycl`
-- requesting an unavailable backend with fallback enabled resolves to `cpu_ref`
+What is still intentionally incomplete relative to the broader D2C reference:
+- predictive-coding learning heads
+- per-channel value learning runtime
+- Python-side Director/TraceStore orchestration
+- language/token bridge modules
 
-Example (GPU request with CPU fallback):
-
-```cpp
-gfe::BackendConfig cfg;
-cfg.preferred = gfe::ComputeBackend::GpuCuda;
-cfg.allow_fallback = true;
-cfg.fallback = gfe::ComputeBackend::CpuReference;
-auto fit = gfe::fit_soe_kernel(t, y, opts, cfg);
-```
-
-## C ABI Scaffold (Step A for Bindings)
-
-Added stable C-callable entry points:
-- header: `include/gfe/gfe_c_api.h`
-- implementation: `src/gfe_c_api.cpp`
-
-Current C ABI coverage:
-- `gfe_c_default_soe_fit_options()`
-- `gfe_c_default_backend_config()`
-- `gfe_c_fit_soe_kernel(...)`
-
-Design notes:
-- plain C structs/enums only (wrapper-friendly for Python/Julia)
-- explicit output buffer capacities + required-size reporting
-- status codes + optional error message buffer
-- routes through existing backend selection (CPU fallback behavior preserved)
-
-## Minimal Wrappers (Python + Julia)
-
-Build shared library for foreign-function wrappers:
-
-```bash
-cmake -S "code/c++ core" -B "code/c++ core/build-shared" -DBUILD_SHARED_LIBS=ON
-cmake --build "code/c++ core/build-shared" -j
-```
-
-Python `ctypes` proof-of-call:
-
-```bash
-export GFE_CORE_LIB="$(pwd)/code/c++ core/build-shared/libgfe_core.so"
-python3 code/python/ctypes_smoke.py
-```
-
-Julia `ccall` proof-of-call:
-
-```bash
-export GFE_CORE_LIB="$(pwd)/code/c++ core/build-shared/libgfe_core.so"
-julia code/julia/examples/05_capi_ccall_smoke.jl
-```
+So this directory should be treated as the stable numerical and runtime substrate, not yet the full end-to-end D2C training stack.
 
 ## Build
+
+### Static/library build
 
 ```bash
 cmake -S "code/c++ core" -B "code/c++ core/build" -DCMAKE_BUILD_TYPE=Release
 cmake --build "code/c++ core/build" -j
 ```
 
-## Install (local prefix)
+### Shared-library build for wrappers
+
+```bash
+cmake -S "code/c++ core" -B "code/c++ core/build-shared" -DBUILD_SHARED_LIBS=ON
+cmake --build "code/c++ core/build-shared" -j
+```
+
+## Install
 
 ```bash
 cmake --install "code/c++ core/build" --prefix "$HOME/.local"
 ```
 
-Installed package exports CMake config files under:
+Installed CMake package files land under:
 - `$prefix/lib/cmake/gfe_core`
 
-## Use From Another C++ Project
+Consumer pattern:
 
 ```cmake
 find_package(gfe_core REQUIRED)
 target_link_libraries(my_target PRIVATE gfe::gfe_core)
 ```
 
-## Smoke Test
+## Main Surfaces
+
+### Core fitting and metrics
+- backend-driven SOE fitting
+- spectral metrics with policy control
+- CPU reference path with scaffolded backend selection
+
+Key families:
+- `fit_soe_kernel(...)`
+- `fit_soe_on_basis(...)`
+- `logspace_gamma_basis(...)`
+
+### ABERSOE runtime
+- formulations A, B, and C
+- deterministic and seeded-stochastic execution
+- scenario registry
+- diagnostics/config snapshots
+- optional Hebbian updates
+
+CLI target:
+- `abersoe_cli`
+
+### Hierarchy runtime
+- canonical hierarchy scenarios
+- constrained custom chain specs
+- typed level summaries
+- cross-level contract/warning reporting
+- renormalization analyses and CSV export
+
+CLI target:
+- `hierarchical_min_cli`
+
+### C ABI
+- header: `include/gfe/gfe_c_api.h`
+- implementation: `src/gfe_c_api.cpp`
+
+The ABI already covers more than fitting:
+- SOE fit calls
+- `abersoe` scenario runs
+- `abersoe` scenario runs with explicit state/kernel overrides and trajectory export
+- hierarchy scenario runs
+- cross-level report retrieval
+- renorm report retrieval
+- constrained custom chain validation and execution
+
+Design rule:
+- plain C structs/enums only
+- explicit output capacities and required-size reporting
+- typed reports for wrappers instead of CLI parsing
+
+Worth noting for current experiment work:
+- the richer single-level ABERSOE ABI entrypoint is `gfe_c_abersoe_run_scenario_with_overrides(...)`
+- it is the intended surface when a caller needs:
+  - custom Lorenz63 initial conditions
+  - custom single-level memory kernels (`gamma` / `w`)
+  - the active runtime kernel returned directly
+  - sampled `u` / `chi` trajectories for memory-side analysis
+- trajectory output follows the normal runtime `sample_stride`; use `sample_stride = 1` for dense analysis
+
+## Quick Commands
+
+### Run all local tests
 
 ```bash
-cmake --build "code/c++ core/build" --target gfe_smoke_test
-"code/c++ core/build"/gfe_smoke_test
+ctest --test-dir "code/c++ core/build" --output-on-failure
 ```
 
-## CLI Verification (No GUI)
-
-Run all important GFE operations (default):
+### Run the basic CLI
 
 ```bash
 "code/c++ core/build"/gfe_cli
@@ -129,15 +162,7 @@ List operations:
 "code/c++ core/build"/gfe_cli --list
 ```
 
-Run selected operations and export CSV:
-
-```bash
-"code/c++ core/build"/gfe_cli --op soe_fit --op dynamics_b --csv /tmp/gfe_report.csv
-```
-
-## OU Experiment (CLI)
-
-Build and run the C++ OU reproduction:
+### Run the OU experiment
 
 ```bash
 cmake --build "code/c++ core/build" --target gfe_ou_experiment
@@ -150,55 +175,32 @@ Optional CSV export:
 "code/c++ core/build"/gfe_ou_experiment --csv /tmp/ou_metrics.csv
 ```
 
-## ABERSOE Phase-1 (CLI)
-
-Build and run the ABERSOE wrapper demo:
+### Run ABERSOE scenarios
 
 ```bash
 cmake --build "code/c++ core/build" --target abersoe_cli
-"code/c++ core/build"/abersoe_cli --steps 500 --dt 0.01 --form B
-```
-
-List built-in scenarios:
-
-```bash
 "code/c++ core/build"/abersoe_cli --list-scenarios
 ```
 
-Run deterministic nonlinear Lorenz63 scenario:
+Linear run:
+
+```bash
+"code/c++ core/build"/abersoe_cli --scenario linear --steps 500 --dt 0.01 --form B
+```
+
+Lorenz63 run:
 
 ```bash
 "code/c++ core/build"/abersoe_cli --scenario lorenz63 --steps 3000 --dt 0.005 --form B
 ```
 
-Run resonant second-order Formulation C scenario:
+Resonant Formulation C run:
 
 ```bash
 "code/c++ core/build"/abersoe_cli --scenario resonant1d --steps 2000 --dt 0.01 --form C
 ```
 
-Optional trajectory CSV:
-
-```bash
-"code/c++ core/build"/abersoe_cli --scenario linear --csv /tmp/abersoe_run.csv
-```
-
-Phase-4 hook passthrough visibility + energy trace:
-
-```bash
-"code/c++ core/build"/abersoe_cli --scenario linear --steps 200 --energy-csv /tmp/abersoe_energy.csv
-```
-
-ABERSOE smoke test:
-
-```bash
-cmake --build "code/c++ core/build" --target abersoe_smoke_test
-"code/c++ core/build"/abersoe_smoke_test
-```
-
-## ABERSOE Phase-2 (Diagnostics + Reproducibility)
-
-Deterministic stochastic forcing (seeded), plus diagnostics/config and backend-agnostic fit reports:
+Diagnostics / reproducibility example:
 
 ```bash
 "code/c++ core/build"/abersoe_cli \
@@ -213,13 +215,7 @@ Deterministic stochastic forcing (seeded), plus diagnostics/config and backend-a
   --fit-backend nnls
 ```
 
-Use Prony backend in the same report path:
-
-```bash
-"code/c++ core/build"/abersoe_cli --scenario linear --fit-report-csv /tmp/abersoe_fit_prony.csv --fit-backend prony
-```
-
-Hebbian learning (default rule available: Oja-normalized, opt-in):
+Hebbian update example:
 
 ```bash
 "code/c++ core/build"/abersoe_cli \
@@ -229,53 +225,47 @@ Hebbian learning (default rule available: Oja-normalized, opt-in):
   --hebbian-decay 0.001
 ```
 
-Phase-3 regression snapshot generation and tolerance check:
+### Run hierarchy surfaces
 
 ```bash
-"code/c++ core/build"/abersoe_cli \
-  --scenario lorenz63 \
-  --steps 200 \
-  --dt 0.005 \
-  --form B \
-  --snapshot-csv /tmp/abersoe_snapshot_lorenz.csv \
-  --snapshot-check
+cmake --build "code/c++ core/build" --target hierarchical_min_cli
+"code/c++ core/build"/hierarchical_min_cli
 ```
 
-## GFE GST Module (Reference Backend)
+This is the right entrypoint when you want to inspect:
+- canonical hierarchy scenarios
+- per-level summaries
+- cross-level report output
+- renormalization report output
 
-`gfe_gst` now includes a concrete dense symmetric eigensolver adapter:
-- `gfe::DenseLinearGSTAdapter`
-- modal metadata (`GSTModalMetadata`)
-- basis lifecycle controls (`update_interval`, `basis_validity_horizon`)
-- projection/reconstruction quality reporting (`GSTProjectionReport`)
+## Test Inventory
 
-Run the deterministic GST benchmark:
+Notable local targets include:
+- `gfe_smoke_test`
+- `gst_smoke_test`
+- `gfe_foundation_smoke_test`
+- `gfe_backend_smoke_test`
+- `gfe_c_api_smoke_test`
+- `abersoe_smoke_test`
+- `hierarchical_min_smoke_test`
+- `hierarchical_min_integration_test`
+- `hierarchical_min_unit_test`
+- `hierarchical_min_renorm_test`
+- `hierarchical_min_renorm_integration_test`
+- `hierarchical_min_consistency_test`
+- `hierarchical_min_benchmark_test`
 
-```bash
-cmake --build "code/c++ core/build" --target gst_smoke_test
-"code/c++ core/build"/gst_smoke_test
-```
+These are wired in the local CMake build and can be run together through `ctest`.
 
-## GFE Assumptions + Energy Foundations
+## Related Docs
 
-New domain-agnostic foundation modules:
-- `gfe_assumptions`:
-  - typed theorem-assumption evaluation (`AssumptionEvaluation`)
-  - machine-readable evidence metrics (`AssumptionEvidence`)
-  - deterministic known-valid/known-invalid corpus
-- `gfe_energy`:
-  - standardized quadratic energy bookkeeping (`QuadraticEnergyMonitor`)
-  - per-step residual computation and optional tolerance enforcement
-  - CSV export of energy residuals
+- Root overview: [`/README.md`](/workspaces/aberconics-framework/README.md)
+- Python wrapper guide: [`/code/python/README.md`](/workspaces/aberconics-framework/code/python/README.md)
+- Julia guide: [`/code/julia/README.md`](/workspaces/aberconics-framework/code/julia/README.md)
+- Technical reference extract: [`/D2C.md`](/workspaces/aberconics-framework/D2C.md)
+- Project notebook: [`/Context.md`](/workspaces/aberconics-framework/Context.md)
 
-Run the foundation smoke benchmark:
-
-```bash
-cmake --build "code/c++ core/build" --target gfe_foundation_smoke_test
-"code/c++ core/build"/gfe_foundation_smoke_test
-```
-
-## Space-Conscious Cleanup
+## Cleanup
 
 Clean compiled targets:
 
@@ -283,19 +273,8 @@ Clean compiled targets:
 cmake --build "code/c++ core/build" --target clean
 ```
 
-Purge CMake cache + temp artifacts (custom target):
+Purge CMake cache and temp artifacts:
 
 ```bash
 cmake --build "code/c++ core/build" --target space_clean
 ```
-
-Remove the entire build tree when needed:
-
-```bash
-rm -rf "code/c++ core/build"
-```
-
-## Notes
-- GST support is optional in dynamics APIs.
-- `gfe_dynamics` implements Formulations A/B/C stepping.
-- `gfe_assumptions` and `gfe_energy` provide reference foundation layers (typed evaluator + energy residual bookkeeping).

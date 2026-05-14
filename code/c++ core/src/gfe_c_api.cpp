@@ -311,6 +311,25 @@ abersoe::AberSOEState to_cpp_state(const gfe_c_state_view& state) {
     return out;
 }
 
+abersoe::AberSOEState to_cpp_state(const gfe_c_state_mut_view& state) {
+    if (!state.u || !state.u_size) {
+        throw std::invalid_argument("State u/u_size pointer must not be null");
+    }
+    if (state.chi_capacity > 0 && (!state.chi || !state.chi_size)) {
+        throw std::invalid_argument("State chi/chi_size pointer must not be null when chi_capacity > 0");
+    }
+    if (!state.t) {
+        throw std::invalid_argument("State t pointer must not be null");
+    }
+    abersoe::AberSOEState out;
+    out.u.assign(state.u, state.u + *state.u_size);
+    if (state.chi && state.chi_size && *state.chi_size > 0) {
+        out.chi.assign(state.chi, state.chi + *state.chi_size);
+    }
+    out.t = *state.t;
+    return out;
+}
+
 abersoe::HierarchicalChainRelationType to_chain_relation_type(int value) {
     switch (value) {
         case GFE_C_HIERARCHICAL_RELATION_BOTTOM_UP:
@@ -532,6 +551,80 @@ void copy_samples(gfe_c_abersoe_sample_summary_view& out, const abersoe::AberSOE
     }
     if (out.chi_l2_size) {
         *out.chi_l2_size = n;
+    }
+}
+
+void write_kernel_sizes(gfe_c_memory_kernel_mut_view& out, const gfe::MemoryKernelParams& kernel) {
+    write_required_size(out.gamma_size, kernel.gamma.size());
+    write_required_size(out.w_size, kernel.w.size());
+}
+
+bool can_copy_kernel(const gfe_c_memory_kernel_mut_view& out, const gfe::MemoryKernelParams& kernel) {
+    return out.gamma && out.w &&
+           out.gamma_capacity >= kernel.gamma.size() &&
+           out.w_capacity >= kernel.w.size();
+}
+
+void copy_kernel(gfe_c_memory_kernel_mut_view& out, const gfe::MemoryKernelParams& kernel) {
+    std::copy(kernel.gamma.begin(), kernel.gamma.end(), out.gamma);
+    std::copy(kernel.w.begin(), kernel.w.end(), out.w);
+    if (out.gamma_size) {
+        *out.gamma_size = kernel.gamma.size();
+    }
+    if (out.w_size) {
+        *out.w_size = kernel.w.size();
+    }
+}
+
+void write_trajectory_sizes(gfe_c_abersoe_trajectory_view& out, const abersoe::AberSOERunResult& result) {
+    const std::size_t n = result.samples.size();
+    const std::size_t u_dim = n == 0 ? 0 : result.samples.front().u.size();
+    const std::size_t chi_dim = n == 0 ? 0 : result.samples.front().chi.size();
+    write_required_size(out.t_size, n);
+    write_required_size(out.u_size, n * u_dim);
+    write_required_size(out.chi_size, n * chi_dim);
+    write_required_size(out.u_dim, u_dim);
+    write_required_size(out.chi_dim, chi_dim);
+}
+
+bool can_copy_trajectory(const gfe_c_abersoe_trajectory_view& out, const abersoe::AberSOERunResult& result) {
+    const std::size_t n = result.samples.size();
+    const std::size_t u_dim = n == 0 ? 0 : result.samples.front().u.size();
+    const std::size_t chi_dim = n == 0 ? 0 : result.samples.front().chi.size();
+    return out.t && out.u && out.u_dim && out.chi && out.chi_dim &&
+           out.t_capacity >= n &&
+           out.u_capacity >= n * u_dim &&
+           out.chi_capacity >= n * chi_dim;
+}
+
+void copy_trajectory(gfe_c_abersoe_trajectory_view& out, const abersoe::AberSOERunResult& result) {
+    const std::size_t n = result.samples.size();
+    const std::size_t u_dim = n == 0 ? 0 : result.samples.front().u.size();
+    const std::size_t chi_dim = n == 0 ? 0 : result.samples.front().chi.size();
+    for (std::size_t i = 0; i < n; ++i) {
+        const auto& sample = result.samples[i];
+        out.t[i] = sample.t;
+        for (std::size_t j = 0; j < u_dim; ++j) {
+            out.u[i * u_dim + j] = sample.u[j];
+        }
+        for (std::size_t j = 0; j < chi_dim; ++j) {
+            out.chi[i * chi_dim + j] = sample.chi[j];
+        }
+    }
+    if (out.t_size) {
+        *out.t_size = n;
+    }
+    if (out.u_size) {
+        *out.u_size = n * u_dim;
+    }
+    if (out.u_dim) {
+        *out.u_dim = u_dim;
+    }
+    if (out.chi_size) {
+        *out.chi_size = n * chi_dim;
+    }
+    if (out.chi_dim) {
+        *out.chi_dim = chi_dim;
     }
 }
 
@@ -945,6 +1038,118 @@ int gfe_c_abersoe_run_scenario(int scenario,
         copy_samples(*samples, result);
         *diagnostics = to_c_abersoe_diagnostics(result.diagnostics);
         *config = to_c_abersoe_config(result.config);
+        return GFE_C_STATUS_OK;
+    } catch (const std::invalid_argument& e) {
+        write_error(error_msg, error_msg_capacity, e.what());
+        return GFE_C_STATUS_INVALID_ARGUMENT;
+    } catch (const std::exception& e) {
+        write_error(error_msg, error_msg_capacity, e.what());
+        return GFE_C_STATUS_RUNTIME_ERROR;
+    } catch (...) {
+        write_error(error_msg, error_msg_capacity, "Unknown C API error");
+        return GFE_C_STATUS_RUNTIME_ERROR;
+    }
+}
+
+int gfe_c_abersoe_run_scenario_with_overrides(
+    int scenario,
+    double dt,
+    int form,
+    const gfe_c_abersoe_runtime_config* cfg,
+    const gfe_c_state_view* initial_state_override,
+    const gfe_c_memory_kernel_view* kernel_override,
+    gfe_c_state_mut_view* final_state,
+    gfe_c_memory_kernel_mut_view* active_kernel,
+    gfe_c_abersoe_diagnostics* diagnostics,
+    gfe_c_abersoe_config_record* config,
+    gfe_c_abersoe_sample_summary_view* samples,
+    gfe_c_abersoe_trajectory_view* trajectory,
+    char* error_msg,
+    size_t error_msg_capacity) {
+    try {
+        if (!cfg || !final_state || !active_kernel || !diagnostics || !config || !samples || !trajectory) {
+            write_error(error_msg, error_msg_capacity, "Null pointer argument");
+            return GFE_C_STATUS_INVALID_ARGUMENT;
+        }
+
+        const auto cpp_scenario = to_abersoe_scenario(scenario);
+        const auto cpp_form = to_coupling_form(form);
+        auto model = abersoe::make_scenario_model(cpp_scenario, dt, cpp_form);
+        auto state0 = initial_state_override ? to_cpp_state(*initial_state_override)
+                                             : abersoe::make_scenario_initial_state(cpp_scenario);
+        if (kernel_override) {
+            model.kernel = to_cpp_kernel(*kernel_override);
+        }
+
+        const auto cpp_cfg = to_cpp_abersoe_runtime_config(*cfg);
+        const auto result = abersoe::run(model, state0, cpp_cfg);
+
+        gfe::MemoryKernelParams active_cpp_kernel;
+        active_cpp_kernel.gamma = model.kernel.gamma;
+        active_cpp_kernel.w = result.final_kernel_w.empty() ? model.kernel.w : result.final_kernel_w;
+
+        write_state_sizes(*final_state, result.final_state);
+        write_kernel_sizes(*active_kernel, active_cpp_kernel);
+        write_sample_sizes(*samples, result.samples.size());
+        write_trajectory_sizes(*trajectory, result);
+        if (!can_copy_state(*final_state, result.final_state) ||
+            !can_copy_kernel(*active_kernel, active_cpp_kernel) ||
+            !can_copy_samples(*samples, result.samples.size()) ||
+            !can_copy_trajectory(*trajectory, result)) {
+            write_error(error_msg, error_msg_capacity, "Output buffer too small");
+            return GFE_C_STATUS_BUFFER_TOO_SMALL;
+        }
+
+        copy_state(*final_state, result.final_state);
+        copy_kernel(*active_kernel, active_cpp_kernel);
+        copy_samples(*samples, result);
+        copy_trajectory(*trajectory, result);
+        *diagnostics = to_c_abersoe_diagnostics(result.diagnostics);
+        *config = to_c_abersoe_config(result.config);
+        return GFE_C_STATUS_OK;
+    } catch (const std::invalid_argument& e) {
+        write_error(error_msg, error_msg_capacity, e.what());
+        return GFE_C_STATUS_INVALID_ARGUMENT;
+    } catch (const std::exception& e) {
+        write_error(error_msg, error_msg_capacity, e.what());
+        return GFE_C_STATUS_RUNTIME_ERROR;
+    } catch (...) {
+        write_error(error_msg, error_msg_capacity, "Unknown C API error");
+        return GFE_C_STATUS_RUNTIME_ERROR;
+    }
+}
+
+int gfe_c_abersoe_step(
+    int scenario,
+    double dt,
+    int form,
+    const gfe_c_memory_kernel_view* kernel,
+    gfe_c_state_mut_view* state,
+    char* error_msg,
+    size_t error_msg_capacity) {
+    try {
+        if (!state) {
+            write_error(error_msg, error_msg_capacity, "Null pointer argument");
+            return GFE_C_STATUS_INVALID_ARGUMENT;
+        }
+
+        const auto cpp_scenario = to_abersoe_scenario(scenario);
+        const auto cpp_form = to_coupling_form(form);
+        auto model = abersoe::make_scenario_model(cpp_scenario, dt, cpp_form);
+        if (kernel) {
+            model.kernel = to_cpp_kernel(*kernel);
+        }
+
+        auto current_state = to_cpp_state(*state);
+        const auto next_state = abersoe::step(model, current_state);
+
+        write_state_sizes(*state, next_state);
+        if (!can_copy_state(*state, next_state)) {
+            write_error(error_msg, error_msg_capacity, "Output buffer too small");
+            return GFE_C_STATUS_BUFFER_TOO_SMALL;
+        }
+
+        copy_state(*state, next_state);
         return GFE_C_STATUS_OK;
     } catch (const std::invalid_argument& e) {
         write_error(error_msg, error_msg_capacity, e.what());

@@ -321,6 +321,107 @@ int main() {
                 std::cerr << "expected positive final/sample times from abersoe scenario run\n";
                 return 1;
             }
+
+            std::vector<double> custom_gamma{1.4, 0.6, 0.2};
+            std::vector<double> custom_w{0.45, 0.35, 0.20};
+            gfe_c_memory_kernel_view kernel_override{
+                custom_gamma.data(),
+                custom_gamma.size(),
+                custom_w.data(),
+                custom_w.size(),
+            };
+
+            std::vector<double> init_u{2.0, -1.0, 8.0};
+            std::vector<double> init_chi{0.1, -0.2, 0.05};
+            gfe_c_state_view initial_state_override{
+                init_u.data(),
+                init_u.size(),
+                init_chi.data(),
+                init_chi.size(),
+                0.25,
+            };
+
+            std::vector<double> active_gamma(8, 0.0);
+            std::vector<double> active_w(8, 0.0);
+            std::size_t active_gamma_size = 0;
+            std::size_t active_w_size = 0;
+            gfe_c_memory_kernel_mut_view active_kernel{
+                active_gamma.data(),
+                active_gamma.size(),
+                &active_gamma_size,
+                active_w.data(),
+                active_w.size(),
+                &active_w_size,
+            };
+
+            std::vector<double> traj_t(16, 0.0);
+            std::vector<double> traj_u(16 * 3, 0.0);
+            std::vector<double> traj_chi(16 * 3, 0.0);
+            std::size_t traj_t_size = 0;
+            std::size_t traj_u_size = 0;
+            std::size_t traj_u_dim = 0;
+            std::size_t traj_chi_size = 0;
+            std::size_t traj_chi_dim = 0;
+            gfe_c_abersoe_trajectory_view trajectory{
+                traj_t.data(),
+                traj_t.size(),
+                &traj_t_size,
+                traj_u.data(),
+                traj_u.size(),
+                &traj_u_size,
+                &traj_u_dim,
+                traj_chi.data(),
+                traj_chi.size(),
+                &traj_chi_size,
+                &traj_chi_dim,
+            };
+
+            const int custom_run_rc = gfe_c_abersoe_run_scenario_with_overrides(
+                GFE_C_ABERSOE_SCENARIO_LORENZ63,
+                0.01,
+                GFE_C_COUPLING_FORM_B,
+                &run_cfg,
+                &initial_state_override,
+                &kernel_override,
+                &final_state,
+                &active_kernel,
+                &diag,
+                &cfg_record,
+                &samples,
+                &trajectory,
+                errbuf4,
+                sizeof(errbuf4));
+            if (custom_run_rc != GFE_C_STATUS_OK) {
+                std::cerr << "gfe_c_abersoe_run_scenario_with_overrides failed: " << errbuf4 << "\n";
+                return 1;
+            }
+            if (final_u_size != 3 || final_chi_size != custom_gamma.size()) {
+                std::cerr << "unexpected final-state shape from custom Lorenz run\n";
+                return 1;
+            }
+            if (active_gamma_size != custom_gamma.size() || active_w_size != custom_w.size()) {
+                std::cerr << "unexpected active-kernel shape from custom Lorenz run\n";
+                return 1;
+            }
+            for (std::size_t i = 0; i < custom_gamma.size(); ++i) {
+                if (std::abs(active_gamma[i] - custom_gamma[i]) > 1e-12 ||
+                    std::abs(active_w[i] - custom_w[i]) > 1e-12) {
+                    std::cerr << "active kernel did not round-trip custom override\n";
+                    return 1;
+                }
+            }
+            if (traj_t_size != sample_t_size || traj_u_dim != 3 || traj_chi_dim != custom_gamma.size()) {
+                std::cerr << "unexpected trajectory dimensions from custom Lorenz run\n";
+                return 1;
+            }
+            if (traj_u_size != traj_t_size * traj_u_dim || traj_chi_size != traj_t_size * traj_chi_dim) {
+                std::cerr << "unexpected flattened trajectory sizes from custom Lorenz run\n";
+                return 1;
+            }
+            if (std::abs(traj_t.front() - initial_state_override.t) > 1e-12) {
+                std::cerr << "trajectory should preserve custom initial time\n";
+                return 1;
+            }
         }
 
         {

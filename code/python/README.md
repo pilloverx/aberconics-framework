@@ -9,6 +9,7 @@ This folder provides a Python `ctypes` wrapper over the C ABI in:
   - `fit_soe_kernel(...)`
   - `list_abersoe_scenarios(...)`
   - `run_abersoe_scenario(...)`
+  - `run_abersoe_scenario_with_overrides(...)`
   - `list_hierarchical_scenarios(...)`
   - `run_hierarchical_scenario(...)`
   - `validate_hierarchical_chain_spec(...)`
@@ -53,6 +54,7 @@ pytest -q code/python/tests
 ```python
 from gfe_ctypes import (
     GFE_C_ABERSOE_SCENARIO_LINEAR,
+    GFE_C_ABERSOE_SCENARIO_LORENZ63,
     GFE_C_HIERARCHICAL_SCENARIO_THREE_LEVEL_HOMEOSTATIC,
     GFE_C_HIERARCHICAL_RELATION_BOTTOM_UP,
     GFE_C_HIERARCHICAL_RELATION_TOP_DOWN,
@@ -70,6 +72,7 @@ from gfe_ctypes import (
     list_hierarchical_scenarios,
     load_gfe_library,
     run_abersoe_scenario,
+    run_abersoe_scenario_with_overrides,
     run_hierarchical_chain_spec,
     run_hierarchical_scenario,
     validate_hierarchical_chain_spec,
@@ -96,6 +99,20 @@ run = run_abersoe_scenario(
     sample_stride=5,
 )
 print(run["final_state"]["t"], run["diagnostics"]["steps_executed"])
+
+lorenz = run_abersoe_scenario_with_overrides(
+    lib,
+    GFE_C_ABERSOE_SCENARIO_LORENZ63,
+    dt=0.01,
+    steps=20,
+    sample_stride=1,
+    initial_u=[2.0, -1.0, 8.0],
+    initial_chi=[0.1, -0.2, 0.05],
+    initial_t=0.25,
+    gamma=[1.4, 0.6, 0.2],
+    w=[0.45, 0.35, 0.2],
+)
+print(lorenz["active_kernel"]["gamma"], lorenz["trajectory"]["u"][0])
 
 print(list_hierarchical_scenarios(lib))
 
@@ -205,6 +222,19 @@ direct_bundle = write_hierarchical_chain_export_bundle(
 )
 print(direct_bundle)
 ```
+
+## Single-Level Override Path
+
+For single-level ABERSOE experiments, `run_abersoe_scenario_with_overrides(...)` is the wrapper entrypoint when you need:
+- custom Lorenz63 initial conditions
+- custom single-level `gamma` / `w`
+- direct access to the active runtime kernel
+- sampled full-state trajectories for both `u` and `chi`
+
+Notes:
+- the returned `trajectory` payload is sampled using the normal runtime `sample_stride`
+- for dense memory-side analysis, set `sample_stride=1`
+- `gamma` and `w` must be provided together when overriding the kernel
 
 ## Constrained Custom Chains
 

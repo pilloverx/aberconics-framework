@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from gfe_ctypes import (
     GFE_C_ABERSOE_SCENARIO_LINEAR,
+    GFE_C_ABERSOE_SCENARIO_LORENZ63,
     GFE_C_COUPLING_FORM_B,
     GFE_C_HIERARCHICAL_RELATION_BOTTOM_UP,
     GFE_C_HIERARCHICAL_RELATION_TOP_DOWN,
@@ -25,6 +26,7 @@ from gfe_ctypes import (
     list_hierarchical_scenarios,
     load_gfe_library,
     run_abersoe_scenario,
+    run_abersoe_scenario_with_overrides,
     run_hierarchical_chain_spec,
     run_hierarchical_scenario,
     validate_hierarchical_chain_spec,
@@ -87,6 +89,39 @@ def test_ctypes_abersoe_scenario_run():
     assert len(out["samples"]["t"]) > 0
     assert len(out["samples"]["t"]) == len(out["samples"]["u0"])
     assert len(out["samples"]["t"]) == len(out["samples"]["chi0"])
+
+
+@pytest.mark.smoke
+def test_ctypes_abersoe_lorenz_overrides():
+    try:
+        lib = load_gfe_library(_lib_path())
+    except OSError as exc:
+        pytest.skip(f"shared library unavailable: {exc}")
+
+    out = run_abersoe_scenario_with_overrides(
+        lib,
+        GFE_C_ABERSOE_SCENARIO_LORENZ63,
+        dt=0.01,
+        steps=20,
+        sample_stride=1,
+        strict_finite=True,
+        initial_u=[2.0, -1.0, 8.0],
+        initial_chi=[0.1, -0.2, 0.05],
+        initial_t=0.25,
+        gamma=[1.4, 0.6, 0.2],
+        w=[0.45, 0.35, 0.2],
+    )
+
+    assert len(out["final_state"]["u"]) == 3
+    assert len(out["final_state"]["chi"]) == 3
+    assert out["active_kernel"]["gamma"] == pytest.approx([1.4, 0.6, 0.2])
+    assert out["active_kernel"]["w"] == pytest.approx([0.45, 0.35, 0.2])
+    assert out["trajectory"]["u_dim"] == 3
+    assert out["trajectory"]["chi_dim"] == 3
+    assert len(out["trajectory"]["t"]) == 21
+    assert out["trajectory"]["t"][0] == pytest.approx(0.25)
+    assert out["trajectory"]["u"][0] == pytest.approx([2.0, -1.0, 8.0])
+    assert out["trajectory"]["chi"][0] == pytest.approx([0.1, -0.2, 0.05])
 
 
 @pytest.mark.smoke

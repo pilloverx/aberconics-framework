@@ -163,6 +163,17 @@ class GfeCMemoryKernelView(ctypes.Structure):
     ]
 
 
+class GfeCMemoryKernelMutView(ctypes.Structure):
+    _fields_ = [
+        ("gamma", POINTER(c_double)),
+        ("gamma_capacity", c_size_t),
+        ("gamma_size", POINTER(c_size_t)),
+        ("w", POINTER(c_double)),
+        ("w_capacity", c_size_t),
+        ("w_size", POINTER(c_size_t)),
+    ]
+
+
 class GfeCStateView(ctypes.Structure):
     _fields_ = [
         ("u", POINTER(c_double)),
@@ -202,6 +213,22 @@ class GfeCAbersoeSampleSummaryView(ctypes.Structure):
         ("chi_l2", POINTER(c_double)),
         ("chi_l2_capacity", c_size_t),
         ("chi_l2_size", POINTER(c_size_t)),
+    ]
+
+
+class GfeCAbersoeTrajectoryView(ctypes.Structure):
+    _fields_ = [
+        ("t", POINTER(c_double)),
+        ("t_capacity", c_size_t),
+        ("t_size", POINTER(c_size_t)),
+        ("u", POINTER(c_double)),
+        ("u_capacity", c_size_t),
+        ("u_size", POINTER(c_size_t)),
+        ("u_dim", POINTER(c_size_t)),
+        ("chi", POINTER(c_double)),
+        ("chi_capacity", c_size_t),
+        ("chi_size", POINTER(c_size_t)),
+        ("chi_dim", POINTER(c_size_t)),
     ]
 
 
@@ -512,6 +539,35 @@ def load_gfe_library(path: str | None = None) -> ctypes.CDLL:
         c_size_t,
     ]
     lib.gfe_c_abersoe_run_scenario.restype = c_int
+
+    lib.gfe_c_abersoe_run_scenario_with_overrides.argtypes = [
+        c_int,
+        c_double,
+        c_int,
+        POINTER(GfeCAbersoeRuntimeConfig),
+        POINTER(GfeCStateView),
+        POINTER(GfeCMemoryKernelView),
+        POINTER(GfeCStateMutView),
+        POINTER(GfeCMemoryKernelMutView),
+        POINTER(GfeCAbersoeDiagnostics),
+        POINTER(GfeCAbersoeConfigRecord),
+        POINTER(GfeCAbersoeSampleSummaryView),
+        POINTER(GfeCAbersoeTrajectoryView),
+        POINTER(c_char),
+        c_size_t,
+    ]
+    lib.gfe_c_abersoe_run_scenario_with_overrides.restype = c_int
+
+    lib.gfe_c_abersoe_step.argtypes = [
+        c_int,
+        c_double,
+        c_int,
+        POINTER(GfeCMemoryKernelView),
+        POINTER(GfeCStateMutView),
+        POINTER(c_char),
+        c_size_t,
+    ]
+    lib.gfe_c_abersoe_step.restype = c_int
 
     lib.gfe_c_hierarchical_scenario_count.argtypes = []
     lib.gfe_c_hierarchical_scenario_count.restype = c_size_t
@@ -981,6 +1037,39 @@ def _double_array(values: List[float]) -> ctypes.Array[c_double] | None:
     return (c_double * len(values))(*values)
 
 
+def _build_state_view(
+    u: Sequence[float],
+    chi: Sequence[float] | None = None,
+    *,
+    t: float = 0.0,
+) -> tuple[GfeCStateView, List[object]]:
+    u_arr = _double_array([float(v) for v in u])
+    chi_arr = _double_array([float(v) for v in (chi or [])])
+    view = GfeCStateView(
+        u_arr if u_arr is not None else POINTER(c_double)(),
+        len(u),
+        chi_arr if chi_arr is not None else POINTER(c_double)(),
+        len(chi or []),
+        float(t),
+    )
+    return view, [u_arr, chi_arr]
+
+
+def _build_kernel_view(
+    gamma: Sequence[float],
+    w: Sequence[float],
+) -> tuple[GfeCMemoryKernelView, List[object]]:
+    gamma_arr = _double_array([float(v) for v in gamma])
+    w_arr = _double_array([float(v) for v in w])
+    view = GfeCMemoryKernelView(
+        gamma_arr if gamma_arr is not None else POINTER(c_double)(),
+        len(gamma),
+        w_arr if w_arr is not None else POINTER(c_double)(),
+        len(w),
+    )
+    return view, [gamma_arr, w_arr]
+
+
 def _build_hierarchical_chain_spec(
     levels: List[Dict[str, object]],
     edges: List[Dict[str, object]],
@@ -1176,6 +1265,270 @@ def run_abersoe_scenario(
             "u_l2": [sample_u_l2[i] for i in range(sample_u_l2_size.value)],
             "chi_l2": [sample_chi_l2[i] for i in range(sample_chi_l2_size.value)],
         },
+    }
+
+
+def run_abersoe_scenario_with_overrides(
+    lib: ctypes.CDLL,
+    scenario: int,
+    *,
+    dt: float = 0.01,
+    form: int = GFE_C_COUPLING_FORM_B,
+    initial_u: Sequence[float] | None = None,
+    initial_chi: Sequence[float] | None = None,
+    initial_t: float = 0.0,
+    gamma: Sequence[float] | None = None,
+    w: Sequence[float] | None = None,
+    steps: int | None = None,
+    sample_stride: int | None = None,
+    strict_finite: bool | None = None,
+) -> Dict[str, object]:
+    cfg = default_abersoe_runtime_config(lib)
+    if steps is not None:
+        cfg.steps = steps
+    if sample_stride is not None:
+        cfg.sample_stride = sample_stride
+    if strict_finite is not None:
+        cfg.strict_finite = 1 if strict_finite else 0
+
+    initial_state_ptr = None
+    kernel_ptr = None
+    keepalive: List[object] = []
+    if initial_u is not None:
+        initial_state, state_keepalive = _build_state_view(initial_u, initial_chi, t=initial_t)
+        keepalive.extend(state_keepalive)
+        initial_state_ptr = byref(initial_state)
+    if (gamma is None) != (w is None):
+        raise ValueError("gamma and w must be provided together")
+    if gamma is not None and w is not None:
+        kernel_view, kernel_keepalive = _build_kernel_view(gamma, w)
+        keepalive.extend(kernel_keepalive)
+        kernel_ptr = byref(kernel_view)
+
+    final_u = (c_double * 32)()
+    final_chi = (c_double * 32)()
+    final_t = c_double(0.0)
+    final_u_size = c_size_t(0)
+    final_chi_size = c_size_t(0)
+    final_state = GfeCStateMutView(
+        final_u,
+        32,
+        ctypes.pointer(final_u_size),
+        final_chi,
+        32,
+        ctypes.pointer(final_chi_size),
+        ctypes.pointer(final_t),
+    )
+
+    active_gamma = (c_double * 32)()
+    active_w = (c_double * 32)()
+    active_gamma_size = c_size_t(0)
+    active_w_size = c_size_t(0)
+    active_kernel = GfeCMemoryKernelMutView(
+        active_gamma,
+        32,
+        ctypes.pointer(active_gamma_size),
+        active_w,
+        32,
+        ctypes.pointer(active_w_size),
+    )
+
+    n_samples_cap = max(4, (cfg.steps // max(1, cfg.sample_stride)) + 2)
+    sample_t = (c_double * n_samples_cap)()
+    sample_u0 = (c_double * n_samples_cap)()
+    sample_chi0 = (c_double * n_samples_cap)()
+    sample_u_l2 = (c_double * n_samples_cap)()
+    sample_chi_l2 = (c_double * n_samples_cap)()
+    sample_t_size = c_size_t(0)
+    sample_u0_size = c_size_t(0)
+    sample_chi0_size = c_size_t(0)
+    sample_u_l2_size = c_size_t(0)
+    sample_chi_l2_size = c_size_t(0)
+    samples = GfeCAbersoeSampleSummaryView(
+        sample_t,
+        n_samples_cap,
+        ctypes.pointer(sample_t_size),
+        sample_u0,
+        n_samples_cap,
+        ctypes.pointer(sample_u0_size),
+        sample_chi0,
+        n_samples_cap,
+        ctypes.pointer(sample_chi0_size),
+        sample_u_l2,
+        n_samples_cap,
+        ctypes.pointer(sample_u_l2_size),
+        sample_chi_l2,
+        n_samples_cap,
+        ctypes.pointer(sample_chi_l2_size),
+    )
+
+    traj_t = (c_double * n_samples_cap)()
+    traj_u_cap = max(16, n_samples_cap * 16)
+    traj_chi_cap = max(16, n_samples_cap * 32)
+    traj_u = (c_double * traj_u_cap)()
+    traj_chi = (c_double * traj_chi_cap)()
+    traj_t_size = c_size_t(0)
+    traj_u_size = c_size_t(0)
+    traj_u_dim = c_size_t(0)
+    traj_chi_size = c_size_t(0)
+    traj_chi_dim = c_size_t(0)
+    trajectory = GfeCAbersoeTrajectoryView(
+        traj_t,
+        n_samples_cap,
+        ctypes.pointer(traj_t_size),
+        traj_u,
+        traj_u_cap,
+        ctypes.pointer(traj_u_size),
+        ctypes.pointer(traj_u_dim),
+        traj_chi,
+        traj_chi_cap,
+        ctypes.pointer(traj_chi_size),
+        ctypes.pointer(traj_chi_dim),
+    )
+
+    diagnostics = GfeCAbersoeDiagnostics()
+    config = GfeCAbersoeConfigRecord()
+    err = ctypes.create_string_buffer(512)
+
+    status = lib.gfe_c_abersoe_run_scenario_with_overrides(
+        scenario,
+        dt,
+        form,
+        byref(cfg),
+        initial_state_ptr,
+        kernel_ptr,
+        byref(final_state),
+        byref(active_kernel),
+        byref(diagnostics),
+        byref(config),
+        byref(samples),
+        byref(trajectory),
+        err,
+        ctypes.sizeof(err),
+    )
+    if status != GFE_C_STATUS_OK:
+        raise RuntimeError(
+            f"gfe_c_abersoe_run_scenario_with_overrides failed ({status}): {err.value.decode('utf-8')}"
+        )
+
+    n_traj = traj_t_size.value
+    u_dim = traj_u_dim.value
+    chi_dim = traj_chi_dim.value
+    return {
+        "final_state": {
+            "u": [final_u[i] for i in range(final_u_size.value)],
+            "chi": [final_chi[i] for i in range(final_chi_size.value)],
+            "t": final_t.value,
+        },
+        "active_kernel": {
+            "gamma": [active_gamma[i] for i in range(active_gamma_size.value)],
+            "w": [active_w[i] for i in range(active_w_size.value)],
+        },
+        "diagnostics": {
+            "steps_executed": diagnostics.steps_executed,
+            "all_finite": bool(diagnostics.all_finite),
+            "max_abs_u": diagnostics.max_abs_u,
+            "max_abs_chi": diagnostics.max_abs_chi,
+            "final_u_l2": diagnostics.final_u_l2,
+            "final_chi_l2": diagnostics.final_chi_l2,
+            "mean_abs_u": diagnostics.mean_abs_u,
+            "mean_abs_chi": diagnostics.mean_abs_chi,
+        },
+        "config": {
+            "memory_channels": config.memory_channels,
+            "dt": config.dt,
+            "coupling_index": config.coupling_index,
+            "steps": config.steps,
+            "sample_stride": config.sample_stride,
+            "strict_finite": bool(config.strict_finite),
+            "stochastic_forcing": bool(config.stochastic_forcing),
+            "forcing_noise_std": config.forcing_noise_std,
+            "stochastic_channel": config.stochastic_channel,
+            "seed": config.seed,
+            "fit_backend": config.fit_backend,
+            "hebbian_enabled": bool(config.hebbian_enabled),
+            "hebbian_rule": config.hebbian_rule,
+            "hebbian_learning_rate": config.hebbian_learning_rate,
+            "hebbian_decay": config.hebbian_decay,
+        },
+        "samples": {
+            "t": [sample_t[i] for i in range(sample_t_size.value)],
+            "u0": [sample_u0[i] for i in range(sample_u0_size.value)],
+            "chi0": [sample_chi0[i] for i in range(sample_chi0_size.value)],
+            "u_l2": [sample_u_l2[i] for i in range(sample_u_l2_size.value)],
+            "chi_l2": [sample_chi_l2[i] for i in range(sample_chi_l2_size.value)],
+        },
+        "trajectory": {
+            "t": [traj_t[i] for i in range(n_traj)],
+            "u_dim": u_dim,
+            "chi_dim": chi_dim,
+            "u": [
+                [traj_u[i * u_dim + j] for j in range(u_dim)]
+                for i in range(n_traj)
+            ],
+            "chi": [
+                [traj_chi[i * chi_dim + j] for j in range(chi_dim)]
+                for i in range(n_traj)
+            ],
+        },
+    }
+
+
+def step_abersoe(
+    lib: ctypes.CDLL,
+    scenario: int,
+    dt: float,
+    form: int,
+    *,
+    u: Sequence[float],
+    chi: Sequence[float],
+    t: float,
+    gamma: Sequence[float] | None = None,
+    w: Sequence[float] | None = None,
+) -> Dict[str, object]:
+    """Single-step simulation for a given scenario with optional kernel overrides."""
+    u_buf = (c_double * len(u))(*u)
+    chi_buf = (c_double * len(chi))(*chi)
+    t_val = c_double(t)
+    u_size = c_size_t(len(u))
+    chi_size = c_size_t(len(chi))
+
+    state = GfeCStateMutView(
+        u_buf,
+        len(u),
+        ctypes.pointer(u_size),
+        chi_buf,
+        len(chi),
+        ctypes.pointer(chi_size),
+        ctypes.pointer(t_val),
+    )
+
+    kernel_ptr = None
+    if gamma is not None and w is not None:
+        if len(gamma) != len(w):
+            raise ValueError("gamma and w must have same length for kernel override")
+        gamma_buf = (c_double * len(gamma))(*gamma)
+        w_buf = (c_double * len(w))(*w)
+        kernel = GfeCMemoryKernelView(gamma_buf, len(gamma), w_buf, len(w))
+        kernel_ptr = ctypes.pointer(kernel)
+
+    err = ctypes.create_string_buffer(512)
+    status = lib.gfe_c_abersoe_step(
+        scenario,
+        dt,
+        form,
+        kernel_ptr,
+        byref(state),
+        err,
+        ctypes.sizeof(err),
+    )
+    if status != GFE_C_STATUS_OK:
+        raise RuntimeError(f"gfe_c_abersoe_step failed ({status}): {err.value.decode('utf-8')}")
+
+    return {
+        "u": [u_buf[i] for i in range(u_size.value)],
+        "chi": [chi_buf[i] for i in range(chi_size.value)],
+        "t": t_val.value,
     }
 
 

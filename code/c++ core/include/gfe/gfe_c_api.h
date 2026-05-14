@@ -256,6 +256,20 @@ typedef struct gfe_c_abersoe_sample_summary_view {
     size_t* chi_l2_size;
 } gfe_c_abersoe_sample_summary_view;
 
+typedef struct gfe_c_abersoe_trajectory_view {
+    double* t;
+    size_t t_capacity;
+    size_t* t_size;
+    double* u;
+    size_t u_capacity;
+    size_t* u_size;
+    size_t* u_dim;
+    double* chi;
+    size_t chi_capacity;
+    size_t* chi_size;
+    size_t* chi_dim;
+} gfe_c_abersoe_trajectory_view;
+
 typedef struct gfe_c_hierarchical_run_diagnostics {
     size_t steps_executed;
     int all_finite;
@@ -515,6 +529,31 @@ GFE_C_API int gfe_c_abersoe_run_scenario(int scenario,
                                          gfe_c_abersoe_sample_summary_view* samples,
                                          char* error_msg,
                                          size_t error_msg_capacity);
+
+GFE_C_API int gfe_c_abersoe_run_scenario_with_overrides(
+    int scenario,
+    double dt,
+    int form,
+    const gfe_c_abersoe_runtime_config* cfg,
+    const gfe_c_state_view* initial_state_override,
+    const gfe_c_memory_kernel_view* kernel_override,
+    gfe_c_state_mut_view* final_state,
+    gfe_c_memory_kernel_mut_view* active_kernel,
+    gfe_c_abersoe_diagnostics* diagnostics,
+    gfe_c_abersoe_config_record* config,
+    gfe_c_abersoe_sample_summary_view* samples,
+    gfe_c_abersoe_trajectory_view* trajectory,
+    char* error_msg,
+    size_t error_msg_capacity);
+
+GFE_C_API int gfe_c_abersoe_step(
+    int scenario,
+    double dt,
+    int form,
+    const gfe_c_memory_kernel_view* kernel,
+    gfe_c_state_mut_view* state,
+    char* error_msg,
+    size_t error_msg_capacity);
 
 GFE_C_API size_t gfe_c_hierarchical_scenario_count(void);
 

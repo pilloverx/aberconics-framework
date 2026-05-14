@@ -7,6 +7,7 @@ Manifest.toml
 Project.toml
 
 # Local env/editor
+node_modules/
 .DS_Store
 .vscode/
 .idea/
@@ -17,6 +18,20 @@ env/
 # Logs and scratch
 *.log
 *.tmp
+
+# Python caches / build outputs
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+*.egg-info/
 
 # Backups / exploratory files
 *backup*.jl
